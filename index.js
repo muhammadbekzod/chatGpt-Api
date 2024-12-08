@@ -1,41 +1,75 @@
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
+const dotenv = require("dotenv");
+dotenv.config({ path: ".env" });
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-const API_KEY = "sk-proj-HRh6nXA4XLfhlsC78qc3T3BlbkFJCjLOOnDFnfcbYwQybN0l";
-const API_URL = "https://api.openai.com/v1/chat/completions";
-
-app.post("/chat", async (req, res) => {
-  const { messages } = req.body;
-  try {
-    const apiResponse = await axios.post(
-      API_URL,
-      {
-        model: "gpt-3.5-turbo", // Ensure you are using a correct and accessible model
-        messages: messages,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${API_KEY}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-    res.json(apiResponse.data);
-  } catch (error) {
-    console.error(
-      "Error when calling OpenAI API:",
-      error.response ? error.response.data : error
-    );
-    res.status(500).send("Internal Server Error: Unable to process request");
+const validateMessages = (messages) => {
+  if (!Array.isArray(messages)) {
+    return { isValid: false, message: '"messages" must be an array.' };
   }
+
+  for (const msg of messages) {
+    if (typeof msg !== "object" || msg === null) {
+      return { isValid: false, message: "Each element must be an object." };
+    }
+
+    const { role, content } = msg;
+
+    if (!["system", "user", "assistant"].includes(role)) {
+      return {
+        isValid: false,
+        message: '"role" must be "system", "user", or "assistant".',
+      };
+    }
+
+    if (typeof content !== "string" || content.trim() === "") {
+      return {
+        isValid: false,
+        message: '"content" not empty and must be a string.',
+      };
+    }
+  }
+
+  return { isValid: true, message: "All ok." };
+};
+
+app.post("/", async (req, res) => {
+  const { messages } = req.body;
+
+  const validation = validateMessages(messages);
+
+  if (!validation.isValid) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        statusCode: 400,
+        statusMsg: "Bad Request",
+        msg: validation.message,
+      },
+    });
+  }
+
+  const apiResponse = await axios.post(
+    "https://api.openai.com/v1/chat/completions",
+    {
+      model: "gpt-4",
+      messages,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.OPEN_AI_KEY}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  res.status(200).json(apiResponse.data.choices[0].message);
 });
 
-const PORT = 3001;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(9984, () => {
+  console.log(`Server run!`);
 });
