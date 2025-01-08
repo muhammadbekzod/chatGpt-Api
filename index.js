@@ -38,36 +38,45 @@ const validateMessages = (messages) => {
 };
 
 app.post("/", async (req, res) => {
-  const { messages } = req.body;
+  try {
+    const { messages } = req.body;
 
-  const validation = validateMessages(messages);
+    const validation = validateMessages(messages);
 
-  if (!validation.isValid) {
-    return res.status(400).json({
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          statusCode: 400,
+          msg: validation.message,
+        },
+      });
+    }
+
+    const apiResponse = await axios.post(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        model: "gpt-4",
+        messages,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.OPEN_AI_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    res.status(200).json(apiResponse.data.choices[0].message);
+  } catch (error) {
+    return res.status(error?.status || 500).json({
       success: false,
       error: {
-        statusCode: 400,
-        statusMsg: "Bad Request",
-        msg: validation.message,
+        statusCode: error?.status || 500,
+        msg: error?.response?.data?.error?.message,
       },
     });
   }
-
-  const apiResponse = await axios.post(
-    "https://api.openai.com/v1/chat/completions",
-    {
-      model: "gpt-4",
-      messages,
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.OPEN_AI_KEY}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
-  res.status(200).json(apiResponse.data.choices[0].message);
 });
 
 app.listen(9984, () => {
